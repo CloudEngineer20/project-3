@@ -95,8 +95,57 @@ jobs:
            cd backend
            npm install
            npm audit fix --audit-level=critical --force
-
-
+  deploy-infrastructure:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+        - checkout
+        - run:
+            name: Install tar/gzip utility
+            command: |
+              yum -y install tar gzip curl
+        - run:
+            name: Ensure back-end infrastructure exists
+            command: |
+              aws cloudformation deploy \
+                --template-file .circleci/files/backend.yml \
+                --tags project=udapeople-backend \
+                --stack-name "backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+                --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"  
+                 exit 1
+        - run:
+            name: Get and store backend IP
+            command: |
+              #URLS=$(aws ec2 describe-instances --query 'Reservations[*].Instances[*].PublicIpAddress' --filters "Name=tag:Name,Values=backend-${WORKFLOW_ID}" --output text >> inventory.txt) 
+              # echo $URLS
+              aws ec2 describe-instances \
+                --query 'Reservations[*].Instances[*].PublicIpAddress' \
+                --filters Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+                --output text >> inventory.txt
+              curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID:0:7}" --request PUT --data "" https://api.memstash.io/values/url_${WORKFLOW_ID}       
+        - run:
+            name: Ensure front-end infrastructure exist
+            command: |
+              aws cloudformation deploy \
+                --template-file .circleci/files/frontend.yml \
+                --tags project=udapepole-frontend \
+                --stack-name "frontend-${CIRCLE_WORKFLOW_ID:0:7}" \
+                --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"   
+                # exit 1
+        - run:
+            name: Add back-end ip to ansible inventory
+            command: |
+              # Your code here
+              aws ec2 describe-instances \
+                --query 'Reservations[*].Instances[*].PublicIpAddress' \
+                --filters Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+                --output text >> inventory
+              # exit 1
+        - persist_to_workspace:
+            root: ~/
+            paths:
+              - project/.circleci/ansible/inventory.txt
+    
 workflows:
    project3:
      jobs:
@@ -114,5 +163,6 @@ workflows:
        - scan-backend:
            requires:
              - test-backend
-           
+       - deploy-infrastructure:
+          requires: [test-frontend, test-backend, scan-frontend, scan-backend]
 
