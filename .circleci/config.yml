@@ -133,9 +133,9 @@ jobs:
              echo $URLS >> ./inventory.txt
              cat ./inventory.txt
         - persist_to_workspace:
-            root: ansible
+            root: /tmp/ansible
             paths:
-               - ./inventory.txt            
+               - project/.circleci/ansible/inventory.txt            
   configure-infrastructure:
     docker:
       - image: python:3.7-alpine3.11
