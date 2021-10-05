@@ -133,9 +133,34 @@ jobs:
              echo $URLS >> ./inventory.txt
              cat ./inventory.txt
         - persist_to_workspace:
-            root: ~/
+            root: ansible
             paths:
-               - project-3/.circleci/ansible/inventory.txt
+               - .circleci/ansible/inventory.txt            
+  configure-infrastructure:
+    docker:
+      - image: python:3.7-alpine3.11
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints: ["9f:b3:62:5d:62:c4:d3:83:e0:a7:1f:a3:44:f4:32:12"]
+      - attach_workspace:
+          at: /tmp/ansible
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --no-cache \
+                python3 \
+                py3-pip \
+            && pip3 install --upgrade pip \
+            && pip3 install \
+                awscli \
+            && rm -rf /var/cache/apk/*
+            apk add --update ansible      
+      - run:
+          name: Configure server
+          command: |
+            ansible-playbook -i /tmp/ansible/inventory.txt .circleci/ansible/configure-server.yml   
+
     
 workflows:
    project3:
@@ -156,5 +181,5 @@ workflows:
              - test-backend
        - deploy-infrastructure:
           requires: [test-frontend, test-backend, scan-frontend, scan-backend]
-
-
+       - configure-infrastructure:
+          requires: [deploy-infrastructure]
