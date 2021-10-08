@@ -11,8 +11,31 @@ commands:
           name: Destroy environments
           when: on_fail
           command: |
+              aws s3 rm s3://udapeople-<< parameters.workflow_id >> --recursive
+              aws s3 rb s3://udapeople-<< parameters.workflow_id >> --force
               aws cloudformation delete-stack --stack-name "backend-${CIRCLE_WORKFLOW_ID:0:7}"
-              aws cloudformation delete-stack --stack-name "frontend-${CIRCLE_WORKFLOW_ID:0:7}"                
+              aws cloudformation delete-stack --stack-name "frontend-${CIRCLE_WORKFLOW_ID:0:7}"
+  revert_migrations:
+    description: Revert the last migration if successfully run in the current workflow.
+    parameters:
+      when:
+        type: string
+      workflow_id:
+        type: string
+    steps:
+      - run:
+          name: Revert migrations
+          working_directory: ./backend
+          command: |
+            SUCCESS=$(curl -H "token: 7c03b08d-890a-4c26-9085-3050575d3772" --request GET https://api.memstash.io/values/DB_MIGRATION_<< parameters.workflow_id >>)
+            echo $SUCCESS
+            if [[ "$SUCCESS" == "success" ]]
+            then
+              pwd
+              ls -la
+              npm run migrations:revert
+            fi
+          when: on_fail               
 jobs:
   build-frontend:
     docker:
@@ -201,7 +224,76 @@ jobs:
             else
               curl -H "Content-Type: text/plain" -H "7c03b08d-890a-4c26-9085-3050575d3772" \--request PUT --data "MIGRATION_FAILURE" https://api.memstash.io/values/url_${WORKFLOW_ID}
               echo "0"
-            fi      
+            fi   
+  deploy-frontend:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            curl -sL https://rpm.nodesource.com/setup_lts.x | bash -
+            yum -y install nodejs
+            yum -y install tar gzip
+      - attach_workspace:
+          at: ~/
+      - run:    
+          name: Get backend url
+          command: |
+            export BACKEND_IP=$(aws ec2 describe-instances \
+              --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+              --output text)
+            export API_URL="http://${BACKEND_IP}:3030"
+            echo API_URL="http://${BACKEND_IP}:3030" >> "frontend/.env"
+            cat frontend/.env
+      - run:
+          name: Build frontend
+          command: |
+            cd frontend
+            npm install
+            npm run build
+      - run:
+          name: Deploy frontend objects
+          command: |
+            # your code here
+            aws s3 cp ./frontend/dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7}/ --recursive 
+      - destroy-environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+          
+      - revert_migrations:
+          workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+          when: on_fail
+
+  deploy-backend:
+    docker:
+     - image: python:3.7-alpine3.11
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints: ["9f:b3:62:5d:62:c4:d3:83:e0:a7:1f:a3:44:f4:32:12"]
+      - attach_workspace:
+          at: ~/
+      - run:
+          name: Install dependencies
+          working_directory: /tmp
+          command: |
+            apk add --update ansible curl rsync openssh nodejs npm
+            ansible --version
+            pip install awscli
+            aws --version
+      - run:
+          name: Deploy backend
+          working_directory: ./.circleci/ansible
+          command: |
+            cat inventory.txt
+            ansible-playbook -i inventory.txt deploy-backend.yml -vv
+      - destroy-environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+      - revert_migrations:
+          workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+          when: on_fail   
 workflows:
    project3:
      jobs:
@@ -225,3 +317,9 @@ workflows:
           requires: [deploy-infrastructure]
        - run-migrations:
           requires: [configure-infrastructure]
+       - deploy-backend:
+          requires:
+            - run-migrations
+       - deploy-frontend:
+          requires:
+            - run-migrations
