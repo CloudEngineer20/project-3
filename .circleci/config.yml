@@ -200,6 +200,9 @@ jobs:
       - run:
           name: Configure server
           command: |
+            pwd &&
+            ls -la
+            cat inventory.txt
             ansible-playbook .circleci/ansible/configure-server.yml -i .circleci/ansible/inventory.txt
   run-migrations:
     docker:
