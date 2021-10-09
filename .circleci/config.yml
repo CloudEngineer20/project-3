@@ -202,7 +202,7 @@ jobs:
           command: |
             pwd &&
             ls -la
-            cat inventory.txt
+            cat .circleci/ansible/inventory.txt
             ansible-playbook .circleci/ansible/configure-server.yml -i .circleci/ansible/inventory.txt
   run-migrations:
     docker:
