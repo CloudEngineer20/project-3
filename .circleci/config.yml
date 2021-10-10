@@ -325,9 +325,9 @@ jobs:
             curl "${URL}"
             if curl -s ${URL} | grep -q "Welcome"
             then
-            return 1
-            else
             return 0
+            else
+            return 1
             fi
       - run:
           name: Backend smoke test.
