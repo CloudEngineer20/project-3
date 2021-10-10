@@ -378,6 +378,30 @@ jobs:
       - revert_migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
           when: on_fail
+  cleanup:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            sudo apt install -y curl
+      - run:
+          name: Get old stack workflow id
+          command: |
+            export OldWorkflowID=$(curl -H "token: ${CIRCLE_WORKFLOW_ID:0:7}" \
+                  --request GET https://api.memstash.io/values/udapeople_oldworkflow)
+            echo "${OldWorkflowID}"
+            export STACKS=($(aws cloudformation list-stacks --query "StackSummaries[*].StackName" \
+                    --stack-status-filter CREATE_COMPLETE --no-paginate --output text))            
+            echo "${STACKS[@]}"  
+            if [[ "${STACKS[@]}" =~ "${OldWorkflowID}" ]]
+            then
+              aws s3 rm s3://udapeople-"${OldWorkflowID}" --recursive
+              aws s3 rb s3://udapeople-"${OldWorkflowID}" --force
+              aws cloudformation delete-stack --stack-name udapeople-"${OldWorkflowID}"
+            fi
 workflows:
     project3:
       jobs:
@@ -414,5 +438,7 @@ workflows:
         - cloudfront-update:
              requires:
                - smoke-test
-     
+        -  cleanup:
+            requires:
+              - cloudfront-update
      
