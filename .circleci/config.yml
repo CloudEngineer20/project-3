@@ -337,9 +337,9 @@ jobs:
             curl "${URL}"
             if curl -s ${URL} | grep -q "Welcome"
             then
-            return 0
-            else
             return 1
+            else
+            return 0
             fi
       - destroy-environment:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
