@@ -366,12 +366,10 @@ jobs:
                 https://api.memstash.io/values/udapeople_oldworkflow
               
             echo "${OldWorkflowID}"
-            
-            aws cloudformation deploy \
-              --template-file .circleci/files/cloudfront.yml \
-              --tags project=udapeople-"${CIRCLE_WORKFLOW_ID:0:7}" \
-              --stack-name "udapeople-cloudfront-production-${CIRCLE_WORKFLOW_ID:0:7}" \
-              --parameter-overrides WorkflowID="${CIRCLE_WORKFLOW_ID:0:7}"
+            aws cloudformation update-stack \
+            --use-previous-template \
+            --stack-name cloudfront-stack \
+            --parameters ParameterKey=WorkflowID,ParameterValue=$CIRCLE_WORKFLOW_ID,UsePreviousValue=false
       # Here's where you will add some code to rollback on failure  
       - destroy-environment:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
