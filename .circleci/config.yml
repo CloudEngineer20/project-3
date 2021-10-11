@@ -131,4 +131,21 @@ jobs:
            cd backend
            npm install
            npm audit fix --audit-level=critical --force
+workflows:
+    project3:
+      jobs:
+        - build-frontend
+        - test-frontend:
+            requires:
+            - build-frontend
+        - scan-frontend:
+            requires:
+            - test-frontend
+        - build-backend
+        - test-backend:
+            requires:
+            - build-backend
+        - scan-backend:
+            requires:
+              - test-backend
  
